@@ -20,56 +20,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Install jq (for JSON parsing)
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and tag Docker image
         run: |
-          docker build -t workspace-app .
-          docker tag workspace-app:latest ${{ steps.login-ecr.outputs.registry }}/workspace-app:latest
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/workspace-app:latest
+          docker build -t $IMAGE_URI .
+          docker tag $IMAGE_URI $IMAGE_URI
 
-      - name: Push image to ECR
+      - name: Push image to Amazon ECR
         run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/workspace-app:latest
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/workspace-app:latest
+          docker push $IMAGE_URI
 
-      - name: Download existing task definition
-        id: task-def
+      - name: Update ECS service with latest image
         run: |
-          aws ecs describe-task-definition --task-definition ecs-task-definition > task-def.json
-          cat task-def.json | jq '.taskDefinition 
-            | del(
-                .taskDefinitionArn,
-                .revision,
-                .status,
-                .requiresAttributes,
-                .compatibilities,
-                .registeredAt,
-                .registeredBy,
-                .inferenceAccelerators,
-                .ephemeralStorage,
-                .runtimePlatform,
-                .cpu,
-                .memory
-              )
-            | .containerDefinitions[0].image = "${{ steps.login-ecr.outputs.registry }}/workspace-app:latest"' \
-            > updated-task-def.json
-
-      - name: Register updated task definition
-        id: register-task-def
-        run: |
-          task_def_arn=$(aws ecs register-task-definition \
-            --cli-input-json file://updated-task-def.json \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
-          echo "task_def_arn=$task_def_arn" >> $GITHUB_OUTPUT
-
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.register-task-def.outputs.task_def_arn }}
-          service: ecs-task-definition-service-7oqpri8g
-          cluster: ProdCluster
-          wait-for-service-stability: true
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/workspace-app:latest
+          aws ecs update-service \
+            --cluster ProdCluster \
+            --service workspace-service \
+            --force-new-deployment
