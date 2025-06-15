@@ -469,7 +469,7 @@ docker run -p 3000:3000 --env-file .env real-estate-api
 ```
 ## 🚀 Deployment
 
-The application is deployed using cloud-native container platforms. We implemented two deployment strategies but currently maintain only Cloud Run for cost optimization.
+The application is deployed using cloud-native container platforms. I implemented two deployment strategies but currently maintain only Cloud Run for cost optimization.
 
 ### AWS ECS with Fargate
 
